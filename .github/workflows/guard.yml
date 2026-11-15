@@ -1,0 +1,44 @@
+name: path-guard
+
+# Pull requests may change only the frontend (web/) and notebooks (notebooks/).
+# Everything else (backend, configs, tests, packaging, CI) is maintained by the repository owner.
+#
+# Runs as pull_request_target so the check always uses this file as it is on the base branch:
+# a pull request cannot weaken the guard by editing it. No pull request code is checked out or
+# run; the job only reads the list of changed files through the GitHub API.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  allowed-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only web/ and notebooks/ may change
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/$REPO/pulls/$PR/files" --paginate \
+            --jq '.[] | .filename, (.previous_filename // empty)' | sort -u > changed.txt
+          grep -Ev '^(web|notebooks)/' changed.txt > outside.txt || true
+          echo "Changed files: $(wc -l < changed.txt)"
+          if [ -s outside.txt ]; then
+            echo "::error::This pull request changes files outside web/ and notebooks/."
+            {
+              echo "### Files outside web/ and notebooks/"
+              echo
+              sed 's/^/- `/; s/$/`/' outside.txt
+              echo
+              echo "Backend, configs, tests and CI are maintained by the repository owner."
+              echo "Remove these changes, or ask the owner to make them."
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat outside.txt
+            exit 1
+          fi
+          echo "OK: only web/ and notebooks/ changed."

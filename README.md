@@ -121,3 +121,9 @@ tests/         unit and API tests
 uv run pytest -q      # unit and API tests (no data or API keys needed)
 uv run ruff check .   # lint
 ```
+
+## Contributing
+
+Work on a branch and open a pull request. Pull requests may change only `web/` and
+`notebooks/`; the `path-guard` check fails on any other file. The backend, configuration,
+tests and CI are maintained by the repository owner, who reviews every pull request.
