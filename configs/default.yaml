@@ -1,0 +1,124 @@
+# Default settings. Overridden by .env and CLAIMCHECK_* environment variables
+# (nested keys use "__", e.g. CLAIMCHECK_RETRIEVAL__TOP_K=10). Paths default to the repo layout.
+
+env: dev
+editions: ["2024-25", "2025-26"]
+latest_edition: "2025-26"   # prevails when editions conflict
+
+ingest:
+  request_interval_s: 1.0
+  max_retries: 3
+  timeout_s: 60.0
+  header_footer_share: 0.6    # edge lines repeating on 60 %+ of a document's pages
+  edge_band: 0.12             # top/bottom share of the page searched for headers/footers
+  word_count_tolerance: 0.20  # pdfplumber vs PyMuPDF words per page
+  workers: 0                  # extraction processes; 0 = one per CPU core
+  table_min_fill: 0.5         # share of non-empty value cells; below it -> fallback_plain
+  table_max_ragged: 0.25      # share of ragged rows; above it -> fallback_plain
+
+chunking:
+  variant: table_aware        # table_aware | plain_text (ablation)
+  window_words: 150           # proposal 6.1
+  overlap_words: 30
+  min_words: 20
+  max_tokens: 512             # embedding input limit
+  table_max_tokens: 350
+  numeric_share: 0.4          # text chunks with more numeric words are listed (missed tables)
+
+embedding:
+  model: BAAI/bge-small-en-v1.5   # proposal 6.2
+  revision: 5c38ec7c405ec4b44b94cc5a9bb96e735b38267a   # pinned (Hub main, 2024-02-22)
+  dim: 384
+  device: cpu
+  batch_size: 32
+  normalize: true
+  query_prefix: "Represent this sentence for searching relevant passages: "
+  passage_prefix: ""
+
+retrieval:
+  top_k: 5                    # proposal 6.3
+  bm25_k: 50
+  dense_k: 50
+  rrf_k: 60
+
+llm:
+  temperature: 0.0
+  timeout_s: 30.0
+  max_retries: 2              # retries on 429, 408, 5xx, timeouts (full-jitter backoff)
+  backoff_base_s: 0.5
+  backoff_max_s: 8.0
+  max_retry_after_s: 20.0     # a longer Retry-After exhausts the provider -> next provider
+  max_rate_wait_s: 5.0        # longest wait for room in a provider's per-minute window
+  fallback: true              # always off in evaluation mode (one model per run)
+  # OpenAI-compatible endpoints, tried in order. Model ids and limits checked live on
+  # 2026-11-15.
+  providers:
+    - name: groq
+      base_url: https://api.groq.com/openai/v1
+      api_key_env: GROQ_API_KEY
+      extractor_model: openai/gpt-oss-20b
+      verifier_model: openai/gpt-oss-120b
+      # Per model. RPD and TPM measured from x-ratelimit-* headers; RPM and TPD from Groq's
+      # published table (headers do not carry them).
+      requests_per_minute: 30
+      requests_per_day: 1000
+      tokens_per_day: 200000
+    - name: gemini
+      base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+      api_key_env: GEMINI_API_KEY
+      # gemini-3.8-flash (newest Flash) gave 503 / timeouts all through the provider check; 3.5 is
+      # the newest Flash that answered. Free-tier limits are per project, shown only in AI
+      # Studio (no rate-limit headers): the two values below are conservative, not measured.
+      extractor_model: gemini-3.5-flash-lite
+      verifier_model: gemini-3.5-flash
+      requests_per_minute: 10
+      requests_per_day: 250
+
+limits:
+  input_min_chars: 10
+  input_max_chars: 500
+  feedback_comment_max_chars: 500
+  max_claims_per_message: 3
+  per_client_requests_per_minute: 6
+  per_client_requests_per_day: 60
+  # All providers, all models, per UTC day; set from the providers' free-tier limits.
+  daily_llm_request_budget: 600
+  per_client_feedback_per_minute: 20   # feedback writes
+  per_client_feedback_per_day: 200
+  per_client_pages_per_minute: 60      # page renders
+  per_client_pages_per_day: 1000
+  max_concurrent_llm: 4                # concurrent verifications
+
+claims:                       # claims dataset tooling, proposal 7.2
+  target_total: 600
+  total_tolerance: 0.10
+  label_mix: {SUPPORTED: 0.40, REFUTED: 0.40, NEI: 0.20}
+  label_tolerance: 0.05       # within 5 points
+  tabular_share: 0.50         # about half tabular
+  tabular_tolerance: 0.10
+  english_share: 0.80         # 80/20 English to Urdu + Roman Urdu
+  language_tolerance: 0.05
+  split_ratios: {train: 0.70, val: 0.15, test: 0.15}
+  split_seed: 2026
+  kappa_min: 0.70
+  kappa_sample: 100
+  pilot_size: 40
+  translate_share: 0.34       # facts that also get one Urdu and one Roman Urdu claim
+  draft_seed: 2026
+  min_text_words: 40
+  reasoning_mix: {numeric: 0.5, trend: 0.3, comparison: 0.2}   # asked of the drafter
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  prefix: /api/v1
+  cors_origins: []            # same origin as the SPA: none needed
+  trusted_proxy_hops: 0       # X-Forwarded-For entries added by trusted proxies; measure on the host
+  frame_ancestors: ["https://huggingface.co"]
+  page_zoom: 1.5
+  page_cache_mb: 200
+  example_claims:
+    - "Pakistan's real GDP grew by 3.7 percent in FY2026."
+    - "Urban core inflation in Pakistan was 7.5 percent in October 2025."
+    - "Wheat production in Pakistan fell by 4.3 percent in FY2026."
+    - "Pakistan ki GDP FY26 mein 3% barhi"
