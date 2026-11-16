@@ -35,7 +35,7 @@ information) with exact quotes and page-level citations.
 
 ```bash
 uv sync
-cp .env.example .env      # then add GROQ_API_KEY and GEMINI_API_KEY
+cp .env.example .env      # add GROQ_API_KEY and GEMINI_API_KEY
 ```
 
 ### Data
@@ -45,11 +45,11 @@ The corpus is not stored in the repository. Place the data archive's `data/raw/`
 sources listed in `data/manifest.json`:
 
 ```bash
-uv run claimcheck ingest download   # PDFs into data/raw/
-uv run claimcheck ingest extract    # pages
-uv run claimcheck ingest tables     # tables
-uv run claimcheck ingest chunk      # chunks
-uv run claimcheck index build       # embeddings, FAISS and BM25
+uv run claimcheck ingest download   # downloads PDFs into data/raw/
+uv run claimcheck ingest extract
+uv run claimcheck ingest tables
+uv run claimcheck ingest chunk
+uv run claimcheck index build       # builds embeddings, FAISS and BM25
 ```
 
 The first run downloads the embedding model (about 130 MB) from Hugging Face.
@@ -65,7 +65,7 @@ uv run claimcheck pipeline verify "Pakistan's real GDP grew by 3.7 percent in FY
 Run the API server:
 
 ```bash
-uv run claimcheck api serve                         # http://127.0.0.1:8000
+uv run claimcheck api serve
 CLAIMCHECK_FAKE_LLM=1 uv run claimcheck api serve   # canned LLM answers, no API keys
 ```
 
@@ -118,8 +118,8 @@ tests/         unit and API tests
 ## Development
 
 ```bash
-uv run pytest -q      # unit and API tests (no data or API keys needed)
-uv run ruff check .   # lint
+uv run pytest -q      # runs offline (no data or API keys needed)
+uv run ruff check .
 ```
 
 ## Contributing
